@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linenclub B2B Stock Update</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#EEF1F4; --panel:#FFFFFF; --ink:#16202B; --muted:#5B6776; --line:#D5DBE2;
+  --green:#2E7D4F; --green-soft:#DDF0E3; --blue:#2F6E91; --blue-soft:#DCEBF3;
+  --amber:#9A5B0C; --amber-soft:#FBEFD9; --red:#A33A2E; --red-soft:#F8E1DE;
+  --drop:#F7F9FB;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12181F; --panel:#1A222B; --ink:#E6EBF0; --muted:#9AA6B3; --line:#2E3A46;
+    --green:#6CC592; --green-soft:#1C3527; --blue:#7DB8DA; --blue-soft:#1A2F3C;
+    --amber:#E8B056; --amber-soft:#3A2C14; --red:#EE8A7E; --red-soft:#3D1F1B; --drop:#151C24;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12181F; --panel:#1A222B; --ink:#E6EBF0; --muted:#9AA6B3; --line:#2E3A46;
+  --green:#6CC592; --green-soft:#1C3527; --blue:#7DB8DA; --blue-soft:#1A2F3C;
+  --amber:#E8B056; --amber-soft:#3A2C14; --red:#EE8A7E; --red-soft:#3D1F1B; --drop:#151C24;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,"Segoe UI",system-ui,sans-serif;font-size:16px;line-height:1.5}
+main{max-width:820px;margin:0 auto;padding:48px 20px 80px}
+h1{font-size:clamp(1.9rem,4.5vw,2.6rem);line-height:1.1;letter-spacing:-.02em;margin:0 0 12px;font-weight:800}
+.lede{color:var(--muted);max-width:60ch;margin:0 0 36px}
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:640px){.steps{grid-template-columns:1fr}}
+.drop{position:relative;display:flex;flex-direction:column;gap:6px;min-height:170px;padding:20px;border:2px dashed var(--line);border-radius:14px;background:var(--drop);cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--blue)}
+.drop:focus-within{outline:3px solid var(--blue);outline-offset:2px}
+.drop.done{border-style:solid;border-color:var(--green);background:var(--green-soft)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.num{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--panel);font-weight:700;font-size:.9rem}
+.drop.done .num{background:var(--green)}
+.drop strong{font-size:1.05rem;margin-top:6px}
+.drop small{color:var(--muted)}
+.fname{margin-top:auto;font-weight:600;word-break:break-all;color:var(--green)}
+.fname:empty{display:none}
+details{margin:20px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600}
+.fields{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+@media (max-width:640px){.fields{grid-template-columns:1fr}}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.88rem;color:var(--muted)}
+label.f input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.hint{font-size:.85rem;color:var(--muted);margin:10px 0 0}
+.go{margin-top:24px;width:100%;font:inherit;font-weight:700;font-size:1.05rem;padding:16px;border:0;border-radius:12px;background:var(--ink);color:var(--panel);cursor:pointer}
+.go:disabled{opacity:.35;cursor:not-allowed}
+.go:focus-visible,.dl:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.status{margin-top:16px;padding:12px 16px;border-radius:10px;display:none}
+.status.show{display:block}
+.status.err{background:var(--red-soft);color:var(--red)}
+.status.work{background:var(--blue-soft);color:var(--blue)}
+.status.warn{background:var(--amber-soft);color:var(--amber)}
+#results{margin-top:40px;display:none}
+#results.show{display:block}
+h2{font-size:1.35rem;margin:0 0 16px;letter-spacing:-.01em}
+.tally{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+@media (max-width:640px){.tally{grid-template-columns:repeat(2,1fr)}}
+.tally div{padding:14px 16px;border-right:1px solid var(--line)}
+.tally div:last-child{border-right:0}
+.tally b{display:block;font-size:1.7rem;font-variant-numeric:tabular-nums;line-height:1.2}
+.tally span{font-size:.85rem;color:var(--muted)}
+.tally .new b{color:var(--green)}
+.outputs{display:grid;gap:12px;margin-top:20px}
+.out{display:flex;align-items:center;gap:16px;padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.out.product{border-left:5px solid var(--green)}
+.out.stock{border-left:5px solid var(--blue)}
+.out .txt{flex:1}
+.out .txt p{margin:2px 0 0;color:var(--muted);font-size:.9rem}
+.dl{font:inherit;font-weight:700;padding:10px 18px;border-radius:9px;border:0;background:var(--ink);color:var(--panel);cursor:pointer;white-space:nowrap}
+.none{padding:14px 18px;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
+.tablewrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+th,td{padding:7px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:0}
+.notes{margin-top:20px;display:grid;gap:10px}
+.note{padding:12px 16px;border-radius:10px;font-size:.92rem}
+.note.warn{background:var(--amber-soft);color:var(--amber)}
+.note.err{background:var(--red-soft);color:var(--red)}
+.note.info{background:var(--blue-soft);color:var(--blue)}
+.again{margin-top:28px;background:none;border:1px solid var(--line);color:var(--ink);font:inherit;padding:10px 16px;border-radius:9px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Linenclub B2B Stock Update</h1>
+  <p class="lede">Add the two files below. You'll get a stock file ready to upload to the portal, plus a product file if the client has sent any codes the portal doesn't have yet.</p>
+
+  <div class="steps">
+    <label class="drop" id="dropStock">
+      <input type="file" id="fStock" accept=".xlsx,.xls,.xlsb,.csv">
+      <span class="num">1</span>
+      <strong>Portal stock export</strong>
+      <small>The latest stock file downloaded from QArt (columns like SizeERPCode, InitialStock, RemainingStock).</small>
+      <span class="fname" id="nStock"></span>
+    </label>
+    <label class="drop" id="dropClient">
+      <input type="file" id="fClient" accept=".xlsx,.xls,.xlsb,.xlsm">
+      <span class="num">2</span>
+      <strong>Client stock report</strong>
+      <small>The full file the client sent. Only its "Qart stock" sheet is used; everything else is ignored.</small>
+      <span class="fname" id="nClient"></span>
+    </label>
+  </div>
+
+  <div id="sheetPick" class="status warn">
+    Couldn't find a sheet named "Qart stock" in the client file. Choose the right sheet:
+    <select id="sheetSel" style="margin-left:8px"></select>
+  </div>
+
+  <details>
+    <summary>Fixed values for new products</summary>
+    <div class="fields">
+      <label class="f">Season<input id="sSeason" value="NOS"></label>
+      <label class="f">Brand<input id="sBrand" value="Linenclub Studio"></label>
+      <label class="f">OfferMonth<input id="sOffer" value="Nos"></label>
+    </div>
+    <p class="hint">These go on every new product row. Leave them as they are unless you've been told otherwise.</p>
+  </details>
+
+  <button class="go" id="go" disabled>Build upload files</button>
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <section id="results" aria-live="polite">
+    <h2>Your files are ready</h2>
+    <div class="tally">
+      <div><b id="tChanged">0</b><span>stock quantities updated</span></div>
+      <div><b id="tSame">0</b><span>already correct</span></div>
+      <div class="new"><b id="tNew">0</b><span>new codes found</span></div>
+      <div><b id="tNotIn">0</b><span>not in client file (kept at current stock)</span></div>
+    </div>
+
+    <div class="outputs" id="outputs"></div>
+    <div class="notes" id="notes"></div>
+
+    <div id="previewBox" style="display:none;margin-top:28px">
+      <h2 style="font-size:1.1rem;margin:0">New codes going into the product file</h2>
+      <div class="tablewrap"><table id="preview"></table></div>
+      <p class="hint" id="previewMore"></p>
+    </div>
+
+    <button class="again" id="again">Start over with new files</button>
+  </section>
+</main>
+
+<script>
+const TEMPLATES = {"product": {"zip": "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", "sstHead": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n", "sstOpen": "<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"199\" uniqueCount=\"123\">"}, "stock": {"zip": "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", "sstHead": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>", "sstOpen": "<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"22163\" uniqueCount=\"22163\">"}};
+// ---- Core logic: pure functions on arrays-of-rows (no DOM, no library) ----
+const PRODUCT_HEADERS = ["Season","Brand","BrandId","Brand Rank","Gender","Category","SubCategory","Display Name","Collection","Fit","Mood","Description","Fabric","Finish","Quality","Material","Theme","MRP","Is Promoted","Is Secondary","Is AdShoot Product","QPS Code","OfferMonth","Style Name","Display Order","Color","Option","Size","Size IsDeactivated","Product Erp Code","Size Erp Code","EAN","QR Code","QR Code2","Looks","Looks Image","Product IsDeactivated","Image Location","Back Image","Technology Image","Image3","Image4","Image5","Image6","Image7","Image8","Image9","Image10","Image11","Image12","MOQ","Technology","Segmentation","Key Stories","Is Core","Minimum Article Quantity","P1","P2","P3","P4","P5","P6","P7","P8","P9","P10","P11","P12","P13","P14","P15","P16","P17","P18","P19","P20","C1_MRP","C2_MRP","C3_MRP","C4_MRP","C5_MRP","C6_MRP","C7_MRP","C8_MRP","C9_MRP","C10_MRP","S1","S2","S3","S4","OM1","OM2","OM3","OM4","OM5","OM6","OfferMonth IsDeactivated","MRP2","MRP3","MRP4"];
+const PRODUCT_GREEN = new Set(["Season","Brand","Category","SubCategory","MRP","OfferMonth","Style Name","Color","Option","Size","QR Code"]);
+// Size Erp Code is blue in the template but must always be filled.
+const PRODUCT_REQUIRED = [...PRODUCT_GREEN, "Size Erp Code"];
+
+const norm = v => String(v == null ? "" : v).trim().toLowerCase().replace(/\s+/g, " ");
+const txt = v => {
+  if (v == null) return "";
+  if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(v);
+  return String(v).trim();
+};
+const num = v => {
+  if (typeof v === "number") return v;
+  const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "").trim());
+  return isNaN(n) ? null : n;
+};
+
+function pickQartSheet(names) {
+  return names.find(n => norm(n).replace(/\s/g, "") === "qartstock")
+      || names.find(n => norm(n).includes("qart") && norm(n).includes("stock"))
+      || names.find(n => norm(n).includes("qart"))
+      || null;
+}
+
+function findHeaderRow(rows, mustHave, scan = 30) {
+  for (let i = 0; i < Math.min(rows.length, scan); i++) {
+    const cells = (rows[i] || []).map(norm);
+    if (mustHave.every(m => cells.includes(m))) return i;
+  }
+  return -1;
+}
+
+function colIndex(header, candidates) {
+  const h = header.map(norm);
+  for (const c of candidates) { const i = h.indexOf(c); if (i >= 0) return i; }
+  return -1;
+}
+
+function parseStock(rows) {
+  const hr = findHeaderRow(rows, ["sizeerpcode"]);
+  if (hr < 0) throw new Error("Couldn't find a SizeERPCode column in the portal stock file. Check you uploaded the stock export from QArt.");
+  const header = rows[hr].map(txt);
+  const ix = {
+    code: colIndex(header, ["sizeerpcode"]),
+    init: colIndex(header, ["initialstock"]),
+    rem: colIndex(header, ["remainingstock"]),
+    upd: colIndex(header, ["updatedat"]),
+    cre: colIndex(header, ["createdat"]),
+  };
+  if (ix.rem < 0) throw new Error("The portal stock file has no RemainingStock column.");
+  const data = [];
+  for (let i = hr + 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const code = txt(r[ix.code]);
+    if (!code) continue;
+    data.push(header.map((_, c) => r[c] == null ? "" : r[c]));
+  }
+  return { header, ix, data };
+}
+
+function parseClient(rows) {
+  const hr = findHeaderRow(rows, ["material code"]);
+  if (hr < 0) throw new Error("Couldn't find a 'Material code' column in the client's Qart stock sheet.");
+  const header = rows[hr];
+  const ix = {
+    brand: colIndex(header, ["brand"]),
+    cat: colIndex(header, ["cat", "category"]),
+    mrp: colIndex(header, ["mrp2", "mrp"]),
+    colour: colIndex(header, ["colour", "color"]),
+    generic: colIndex(header, ["generic code", "genericcode"]),
+    size: colIndex(header, ["size 2", "size2", "size"]),
+    code: colIndex(header, ["material code"]),
+    qty: colIndex(header, ["total", "sum of stock", "stock", "sum of total", "qty", "quantity"]),
+  };
+  if (ix.qty < 0) throw new Error("Couldn't find the stock quantity column (expected 'Total' or 'Sum of Stock') in the Qart stock sheet.");
+  const map = new Map();
+  let skipped = 0;
+  for (let i = hr + 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const code = txt(r[ix.code]);
+    if (!code || code === "0" || norm(code) === "material code" || norm(code).includes("total")) { if (r.some(x => txt(x))) skipped++; continue; }
+    const q = num(r[ix.qty]);
+    const key = code.toUpperCase();
+    const g = k => ix[k] >= 0 ? r[ix[k]] : "";
+    if (map.has(key)) { map.get(key).qty += (q || 0); map.get(key).dupes++; continue; }
+    map.set(key, { code, qty: q || 0, brand: txt(g("brand")), cat: txt(g("cat")), mrp: g("mrp"),
+      colour: txt(g("colour")), generic: txt(g("generic")), size: txt(g("size")), dupes: 0 });
+  }
+  return { items: [...map.values()], skipped };
+}
+
+
+// Plant is always NA, exactly as in the portal export.
+const PLANT = "NA";
+function reconcile(stock, client, settings) {
+  const { ix } = stock;
+  const byCode = new Map();
+  stock.data.forEach((r, i) => byCode.set(txt(r[ix.code]).toUpperCase(), i));
+  // Output: [SizeERPCode, InitialStock, RemainingStock, Plant]; dates stay empty; Initial always equals Remaining.
+  const out = stock.data.map(r => { const q = num(r[ix.rem]) || 0; return [txt(r[ix.code]), q, q, PLANT]; });
+  const res = { changed: 0, same: 0, added: [], mrpForced: [], missingFields: [], dupes: 0, notInClient: 0 };
+  const matched = new Set();
+  for (const it of client.items) {
+    const key = it.code.toUpperCase();
+    res.dupes += it.dupes;
+    if (byCode.has(key) && byCode.get(key) < stock.data.length) {
+      matched.add(key);
+      const src = stock.data[byCode.get(key)];
+      const was = [num(src[ix.rem]), ix.init >= 0 ? num(src[ix.init]) : num(src[ix.rem])];
+      out[byCode.get(key)] = [txt(src[ix.code]), it.qty, it.qty, PLANT];
+      if (was[0] === it.qty && was[1] === it.qty) res.same++; else res.changed++;
+    } else if (!byCode.has(key)) {
+      out.push([it.code, it.qty, it.qty, PLANT]);
+      byCode.set(key, out.length - 1);
+      res.added.push(it);
+    }
+  }
+  res.notInClient = stock.data.length - matched.size;
+  res.stockRows = out;
+
+  // Product rows for brand-new codes
+  res.productRows = res.added.map(it => {
+    const m = num(it.mrp);
+    let mrp = m;
+    if (m == null || m <= 0) { mrp = 1; res.mrpForced.push(it.code); }
+    const blankColour = ["", "0", "-", "--", "na", "n/a", "nil", "none", "null", "#n/a"];
+    const colour = blankColour.includes(norm(it.colour)) ? "Na" : it.colour;
+    const v = {
+      "Season": settings.season, "Brand": settings.brand,
+      "Category": it.cat, "SubCategory": it.cat, "MRP": mrp,
+      "OfferMonth": settings.offerMonth, "Style Name": it.generic,
+      "Color": colour, "Option": it.generic, "Size": it.size,
+      "Size Erp Code": it.code, "QR Code": it.generic,
+    };
+    const missing = PRODUCT_REQUIRED.filter(h => v[h] === "" || v[h] == null || v[h] === "0");
+    if (missing.length) res.missingFields.push({ code: it.code, missing });
+    return PRODUCT_HEADERS.map(h => (h in v ? v[h] : null));
+  });
+  return res;
+}
+
+
+// ---- Writer: fills the user's own header-only template, keeping every style byte ----
+function colLetter(n) { let s = ""; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; } return s; }
+const xmlEsc = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// Cell styles copied from the sample product file's data rows (s="4" = small Aptos Narrow).
+const PRODUCT_CELL = {
+  "Season": { s: null }, "Brand": { s: null }, "Category": { s: 4 }, "SubCategory": { s: 4 },
+  "MRP": { s: 4, number: true }, "OfferMonth": { s: null }, "Style Name": { s: 4 }, "Color": { s: null },
+  "Option": { s: 4 }, "Size": { s: 4 }, "Size Erp Code": { s: 4 }, "QR Code": { s: 4 },
+};
+
+function buildSheetParts(kind, sheetXml, tplSst, headers, rows) {
+  const strings = headers.slice();        // header strings keep indices 0..n-1 as in the template
+  const index = new Map(); strings.forEach((h, i) => { if (!index.has(h)) index.set(h, i); });
+  let count = headers.length;
+  const si = v => { const k = String(v); count++; if (!index.has(k)) { index.set(k, strings.length); strings.push(k); } return index.get(k); };
+  const parts = [];
+  rows.forEach((row, ri) => {
+    const r = ri + 2;
+    const cells = [];
+    if (kind === "stock") {
+      row.forEach((v, ci) => { cells.push(`<c r="${colLetter(ci)}${r}" s="0" t="s"><v>${si(v)}</v></c>`); });
+      parts.push(`<row r="${r}">${cells.join("")}</row>`);
+    } else {
+      row.forEach((v, ci) => {
+        if (v == null || v === "") return;
+        const spec = PRODUCT_CELL[headers[ci]] || { s: 4 };
+        const sAttr = spec.s != null ? ` s="${spec.s}"` : "";
+        if (spec.number && typeof v === "number") cells.push(`<c r="${colLetter(ci)}${r}"${sAttr}><v>${v}</v></c>`);
+        else cells.push(`<c r="${colLetter(ci)}${r}"${sAttr} t="s"><v>${si(v)}</v></c>`);
+      });
+      parts.push(`<row r="${r}" spans="1:100" x14ac:dyDescent="0.35">${cells.join("")}</row>`);
+    }
+  });
+  const last = rows.length + 1;
+  const lastCol = colLetter(headers.length - 1);
+  let x = sheetXml.replace("</sheetData>", parts.join("") + "</sheetData>")
+                  .replace(/<dimension ref="[^"]*"/, `<dimension ref="A1:${lastCol}${last}"`);
+  if (kind === "product") x = x.replace(/(<conditionalFormatting sqref=")AE2:AE\d+(")/, `$1AE2:AE${Math.max(last, 2)}$2`);
+  const sstOpen = tplSst.open.replace(/count="\d+"/, `count="${count}"`).replace(/uniqueCount="\d+"/, `uniqueCount="${strings.length}"`);
+  const sst = tplSst.head + sstOpen + strings.map(t => `<si><t${/^\s|\s$/.test(t) ? ' xml:space="preserve"' : ""}>${xmlEsc(t)}</t></si>`).join("") + "</sst>";
+  return { sheetXml: x, sstXml: sst };
+}
+
+if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock, parseClient, reconcile, PRODUCT_HEADERS, PRODUCT_GREEN, buildSheetParts };
+
+</script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const files = { stock: null, client: null };
+  let clientBook = null, lastResult = null, downloads = null, downloadsTried = false;
+
+  function setStatus(msg, kind){
+    const s = $("status"); s.className = "status" + (msg ? " show " + kind : ""); s.textContent = msg || "";
+  }
+  function readBuf(file){ return file.arrayBuffer(); }
+  function libsOk(){
+    if (typeof XLSX === "undefined") { setStatus("The spreadsheet reader didn't load. Check your internet connection and reload the page.", "err"); return false; }
+    return true;
+  }
+  function ready(){ $("go").disabled = !(files.stock && files.client && ($("sheetPick").classList.contains("show") ? $("sheetSel").value : true)); }
+
+  function wireDrop(dropId, inputId, nameId, key){
+    const drop = $(dropId), input = $(inputId);
+    ["dragenter","dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+    ["dragleave","drop"].forEach(e => drop.addEventListener(e, () => drop.classList.remove("over")));
+    drop.addEventListener("drop", ev => { ev.preventDefault(); if (ev.dataTransfer.files[0]) take(ev.dataTransfer.files[0]); });
+    input.addEventListener("change", () => { if (input.files[0]) take(input.files[0]); });
+    async function take(f){
+      files[key] = f; $(nameId).textContent = f.name; drop.classList.add("done");
+      $("results").classList.remove("show"); setStatus("");
+      if (key === "client") await inspectClient(f);
+      ready();
+    }
+  }
+
+  async function inspectClient(f){
+    $("sheetPick").classList.remove("show"); clientBook = null;
+    if (!libsOk()) return;
+    try {
+      setStatus("Looking inside the client file…", "work");
+      const buf = await readBuf(f);
+      const names = XLSX.read(buf, { type: "array", bookSheets: true }).SheetNames;
+      const pick = pickQartSheet(names);
+      clientBook = { buf, names, pick };
+      if (!pick) {
+        const sel = $("sheetSel"); sel.innerHTML = '<option value="">Select a sheet</option>' + names.map(n => `<option>${n.replace(/</g,"&lt;")}</option>`).join("");
+        sel.onchange = ready;
+        $("sheetPick").classList.add("show");
+        setStatus("");
+      } else {
+        setStatus(`Found the "${pick}" sheet.`, "work");
+      }
+    } catch (e) {
+      files.client = null; $("dropClient").classList.remove("done");
+      setStatus("Couldn't open the client file. Make sure it's an Excel file (.xlsx or .xlsb) and not password-protected.", "err");
+    }
+  }
+
+  function sheetRows(buf, name){
+    const wb = XLSX.read(buf, { type: "array", sheets: name ? [name] : undefined, cellDates: false });
+    const ws = wb.Sheets[name || wb.SheetNames[0]];
+    if (!ws) throw new Error(`Sheet "${name}" couldn't be read.`);
+    return { rows: XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true }), sheetName: name || wb.SheetNames[0] };
+  }
+
+  function stamp(){ const d = new Date(), p = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+
+  const STOCK_HEADERS = ["SizeERPCode","InitialStock","RemainingStock","Plant","UpdatedAt","CreatedAt"];
+  function b64ToBytes(b64){ const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+  // Opens a copy of the user's own sample file (headers only) and drops the new rows in,
+  // so headers, colours, fonts, widths and frozen row stay exactly as in the sample.
+  async function buildWorkbook(kind, rows){
+    if (typeof JSZip === "undefined") throw new Error("A helper for building Excel files didn't load. Reload the page and try again.");
+    const t = TEMPLATES[kind];
+    const zip = await JSZip.loadAsync(b64ToBytes(t.zip));
+    const sheetXml = await zip.file("xl/worksheets/sheet1.xml").async("string");
+    const headers = kind === "stock" ? STOCK_HEADERS : PRODUCT_HEADERS;
+    const parts = buildSheetParts(kind, sheetXml, { head: t.sstHead, open: t.sstOpen }, headers, rows);
+    zip.file("xl/worksheets/sheet1.xml", parts.sheetXml);
+    zip.file("xl/sharedStrings.xml", parts.sstXml);
+    return zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  }
+
+  async function getDownloads(){
+    if (downloads) return downloads;
+    try {
+      if (window.claude && typeof window.claude.use === "function") downloads = await window.claude.use("downloads");
+    } catch { downloads = null; }
+    return downloads;
+  }
+
+  // Plain browser download: used when the page is opened outside the claude.ai viewer,
+  // or when the viewer's save option isn't available to this person.
+  function browserDownload(blob, filename){
+    const file = new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.rel = "noopener"; a.style.display = "none";
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 60000);
+  }
+
+  async function save(kind, btn){
+    const r = lastResult; if (!r) return;
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Preparing…"; setStatus("");
+    let blob, filename;
+    try {
+      blob = await buildWorkbook(kind, kind === "stock" ? r.stockRows : r.productRows);
+      filename = `${kind === "stock" ? "Stock" : "Product"}_Upload_${stamp()}.xlsx`;
+    } catch (e) {
+      setStatus("The file couldn't be built" + (e && e.message ? ": " + e.message : "."), "err");
+      btn.disabled = false; btn.textContent = label; return;
+    }
+    try {
+      const inViewer = !!(window.claude && typeof window.claude.use === "function");
+      const dl = inViewer ? await getDownloads() : null;
+      if (!inViewer) {
+        browserDownload(blob, filename); btn.textContent = "Downloaded";
+      } else if (dl) {
+        try {
+          await dl.save({ filename, data: blob });
+          btn.textContent = "Downloaded";
+        } catch (e) {
+          const code = e && e.code;
+          if (code === "declined") { setStatus("Download cancelled. Click the button again whenever you're ready.", "warn"); btn.textContent = label; return; }
+          if (code === "rate_limited") { setStatus("A download prompt is already open. Finish that one first.", "warn"); btn.textContent = label; return; }
+          setStatus("Downloads from this link only work for members of the organization that shared it. Ask them for the standalone Linenclub B2B Stock Update file, open it in your browser, and download from there.", "err");
+          btn.textContent = label; return;
+        }
+      } else {
+        setStatus("Downloads from this link only work for members of the organization that shared it. Ask them for the standalone Linenclub B2B Stock Update file, open it in your browser, and download from there.", "err");
+        btn.textContent = label; return;
+      }
+      setTimeout(() => { btn.textContent = label; }, 2500);
+    } finally { btn.disabled = false; }
+  }
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+
+  function render(r){
+    $("tChanged").textContent = r.changed.toLocaleString();
+    $("tSame").textContent = r.same.toLocaleString();
+    $("tNew").textContent = r.added.length.toLocaleString();
+    $("tNotIn").textContent = r.notInClient.toLocaleString();
+
+    const outs = $("outputs"); outs.innerHTML = "";
+    outs.insertAdjacentHTML("beforeend", `<div class="out stock"><div class="txt"><strong>Updated stock file</strong><p>${r.stockRows.length.toLocaleString()} codes: ${r.changed.toLocaleString()} updated, ${r.added.length.toLocaleString()} added. Same layout as your portal export, with only SizeERPCode, InitialStock and RemainingStock filled.</p></div><button class="dl" data-k="stock">Download stock file</button></div>`);
+    if (r.added.length) {
+      outs.insertAdjacentHTML("beforeend", `<div class="out product"><div class="txt"><strong>New product file</strong><p>${r.productRows.length.toLocaleString()} new option rows. Upload this to the portal <em>before</em> the stock file so the new codes exist.</p></div><button class="dl" data-k="product">Download product file</button></div>`);
+    } else {
+      outs.insertAdjacentHTML("beforeend", `<div class="none">No new codes this time, so there's no product file to upload.</div>`);
+    }
+    outs.querySelectorAll(".dl").forEach(b => b.addEventListener("click", () => save(b.dataset.k, b)));
+
+    const notes = $("notes"); notes.innerHTML = "";
+    if (r.missingFields.length) {
+      const list = r.missingFields.slice(0, 15).map(m => `${esc(m.code)} (${m.missing.map(esc).join(", ")})`).join("; ");
+      notes.insertAdjacentHTML("beforeend", `<div class="note err"><strong>${r.missingFields.length} new rows are missing required values</strong> and the portal will reject them until they're filled in: ${list}${r.missingFields.length > 15 ? "…" : ""}</div>`);
+    }
+    if (r.mrpForced.length) {
+      notes.insertAdjacentHTML("beforeend", `<div class="note warn"><strong>MRP set to 1 for ${r.mrpForced.length} new rows</strong> because the client file had no valid MRP: ${r.mrpForced.slice(0, 15).map(esc).join(", ")}${r.mrpForced.length > 15 ? "…" : ""}</div>`);
+    }
+    if (r.dupes) {
+      notes.insertAdjacentHTML("beforeend", `<div class="note info">${r.dupes} codes appeared more than once in the client sheet. Their quantities were added together.</div>`);
+    }
+    if (r.stockCount && r.added.length === r.clientCount && r.clientCount > 0) {
+      notes.insertAdjacentHTML("beforeend", `<div class="note warn">None of the client's codes matched the portal stock file. If you expected some to match, check that you picked the right two files.</div>`);
+    }
+
+    const pb = $("previewBox");
+    if (r.added.length) {
+      const cols = ["Size Erp Code","Style Name","Size","Category","MRP","Color"];
+      const idx = cols.map(c => PRODUCT_HEADERS.indexOf(c));
+      const qtyOf = new Map(r.added.map(a => [a.code, a.qty]));
+      const shown = r.productRows.slice(0, 50);
+      $("preview").innerHTML = `<thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}<th>Stock</th></tr></thead><tbody>` +
+        shown.map(row => `<tr>${idx.map(i => `<td>${esc(row[i])}</td>`).join("")}<td>${esc(qtyOf.get(row[PRODUCT_HEADERS.indexOf("Size Erp Code")]))}</td></tr>`).join("") + "</tbody>";
+      $("previewMore").textContent = r.productRows.length > 50 ? `Showing the first 50 of ${r.productRows.length.toLocaleString()}. The download has them all.` : "";
+      pb.style.display = "block";
+    } else pb.style.display = "none";
+
+    $("results").classList.add("show");
+    $("results").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  }
+
+  $("go").addEventListener("click", async () => {
+    if (!libsOk()) return;
+    const btn = $("go"); btn.disabled = true;
+    try {
+      setStatus("Reading the portal stock file…", "work");
+      await new Promise(r => setTimeout(r, 20));
+      const st = sheetRows(await readBuf(files.stock));
+      const stock = parseStock(st.rows);
+
+      setStatus("Reading the client's Qart stock sheet…", "work");
+      await new Promise(r => setTimeout(r, 20));
+      if (!clientBook) await inspectClient(files.client);
+      const sheet = clientBook.pick || $("sheetSel").value;
+      if (!sheet) throw new Error("Choose which sheet in the client file holds the Qart stock.");
+      const client = parseClient(sheetRows(clientBook.buf, sheet).rows);
+      if (!client.items.length) throw new Error(`The "${sheet}" sheet has no rows with a Material code.`);
+
+      const settings = { season: $("sSeason").value.trim(), brand: $("sBrand").value.trim(), offerMonth: $("sOffer").value.trim() };
+      const r = reconcile(stock, client, settings);
+      r.stockCount = stock.data.length; r.clientCount = client.items.length;
+      lastResult = r;
+      setStatus("");
+      render(r);
+      getDownloads();
+    } catch (e) {
+      setStatus(e.message || String(e), "err");
+    } finally { btn.disabled = false; ready(); }
+  });
+
+  $("again").addEventListener("click", () => {
+    files.stock = files.client = null; clientBook = null; lastResult = null;
+    ["dropStock","dropClient"].forEach(id => $(id).classList.remove("done"));
+    $("nStock").textContent = $("nClient").textContent = "";
+    $("fStock").value = $("fClient").value = "";
+    $("sheetPick").classList.remove("show");
+    $("results").classList.remove("show"); setStatus(""); ready();
+    window.scrollTo({ top: 0 });
+  });
+
+  wireDrop("dropStock", "fStock", "nStock", "stock");
+  wireDrop("dropClient", "fClient", "nClient", "client");
+})();
+</script>
+</body>
+</html>
