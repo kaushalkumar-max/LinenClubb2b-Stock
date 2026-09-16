@@ -72,6 +72,9 @@ h2{font-size:1.35rem;margin:0 0 16px;letter-spacing:-.01em}
 .tally span{font-size:.85rem;color:var(--muted)}
 .tally .new b{color:var(--green)}
 .outputs{display:grid;gap:12px;margin-top:20px}
+.check{margin-top:14px;padding:12px 16px;border-radius:10px;font-weight:600;font-variant-numeric:tabular-nums}
+.check.ok{background:var(--green-soft);color:var(--green)}
+.check.bad{background:var(--red-soft);color:var(--red)}
 .out{display:flex;align-items:center;gap:16px;padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
 .out.product{border-left:5px solid var(--green)}
 .out.stock{border-left:5px solid var(--blue)}
@@ -139,9 +142,10 @@ tr:last-child td{border-bottom:0}
       <div><b id="tChanged">0</b><span>stock quantities updated</span></div>
       <div><b id="tSame">0</b><span>already correct</span></div>
       <div class="new"><b id="tNew">0</b><span>new codes found</span></div>
-      <div><b id="tNotIn">0</b><span>not in client file (kept at current stock)</span></div>
+      <div><b id="tNotIn">0</b><span>not in client file, set to 0</span></div>
     </div>
 
+    <div class="check" id="check"></div>
     <div class="outputs" id="outputs"></div>
     <div class="notes" id="notes"></div>
 
@@ -257,12 +261,14 @@ function reconcile(stock, client, settings) {
   const byCode = new Map();
   stock.data.forEach((r, i) => byCode.set(txt(r[ix.code]).toUpperCase(), i));
   // Output: [SizeERPCode, InitialStock, RemainingStock, Plant]; dates stay empty; Initial always equals Remaining.
-  const out = stock.data.map(r => { const q = num(r[ix.rem]) || 0; return [txt(r[ix.code]), q, q, PLANT]; });
-  const res = { changed: 0, same: 0, added: [], mrpForced: [], missingFields: [], dupes: 0, notInClient: 0 };
+  // Step 1: clear every existing code to 0, so codes the client didn't send end up as 0.
+  const out = stock.data.map(r => [txt(r[ix.code]), 0, 0, PLANT]);
+  const res = { changed: 0, same: 0, added: [], mrpForced: [], missingFields: [], dupes: 0, notInClient: 0, zeroed: 0, clientTotal: 0, outputTotal: 0 };
   const matched = new Set();
   for (const it of client.items) {
     const key = it.code.toUpperCase();
     res.dupes += it.dupes;
+    res.clientTotal += it.qty;
     if (byCode.has(key) && byCode.get(key) < stock.data.length) {
       matched.add(key);
       const src = stock.data[byCode.get(key)];
@@ -276,6 +282,10 @@ function reconcile(stock, client, settings) {
     }
   }
   res.notInClient = stock.data.length - matched.size;
+  stock.data.forEach((r, i) => {
+    if (!matched.has(txt(r[ix.code]).toUpperCase()) && (num(r[ix.rem]) || 0) !== 0) res.zeroed++;
+  });
+  res.outputTotal = out.reduce((a, r) => a + (Number(r[2]) || 0), 0);
   res.stockRows = out;
 
   // Product rows for brand-new codes
@@ -488,8 +498,17 @@ if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock,
     $("tNew").textContent = r.added.length.toLocaleString();
     $("tNotIn").textContent = r.notInClient.toLocaleString();
 
+    const ck = $("check"), fmt = n => Number(n).toLocaleString();
+    if (r.clientTotal === r.outputTotal) {
+      ck.className = "check ok";
+      ck.textContent = `Stock totals match: client file ${fmt(r.clientTotal)} = stock file ${fmt(r.outputTotal)}`;
+    } else {
+      ck.className = "check bad";
+      ck.textContent = `Stock totals don't match: client file ${fmt(r.clientTotal)}, stock file ${fmt(r.outputTotal)}. Check the files before uploading.`;
+    }
+
     const outs = $("outputs"); outs.innerHTML = "";
-    outs.insertAdjacentHTML("beforeend", `<div class="out stock"><div class="txt"><strong>Updated stock file</strong><p>${r.stockRows.length.toLocaleString()} codes: ${r.changed.toLocaleString()} updated, ${r.added.length.toLocaleString()} added. Same layout as your portal export, with only SizeERPCode, InitialStock and RemainingStock filled.</p></div><button class="dl" data-k="stock">Download stock file</button></div>`);
+    outs.insertAdjacentHTML("beforeend", `<div class="out stock"><div class="txt"><strong>Updated stock file</strong><p>${r.stockRows.length.toLocaleString()} codes: ${r.changed.toLocaleString()} updated, ${r.added.length.toLocaleString()} added, ${r.notInClient.toLocaleString()} set to 0. Same layout as your portal export, with only SizeERPCode, InitialStock and RemainingStock filled.</p></div><button class="dl" data-k="stock">Download stock file</button></div>`);
     if (r.added.length) {
       outs.insertAdjacentHTML("beforeend", `<div class="out product"><div class="txt"><strong>New product file</strong><p>${r.productRows.length.toLocaleString()} new option rows. Upload this to the portal <em>before</em> the stock file so the new codes exist.</p></div><button class="dl" data-k="product">Download product file</button></div>`);
     } else {
