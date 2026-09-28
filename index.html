@@ -18,12 +18,14 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
+    color-scheme:dark;
     --bg:#12181F; --panel:#1A222B; --ink:#E6EBF0; --muted:#9AA6B3; --line:#2E3A46;
     --green:#6CC592; --green-soft:#1C3527; --blue:#7DB8DA; --blue-soft:#1A2F3C;
     --amber:#E8B056; --amber-soft:#3A2C14; --red:#EE8A7E; --red-soft:#3D1F1B; --drop:#151C24;
   }
 }
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --bg:#12181F; --panel:#1A222B; --ink:#E6EBF0; --muted:#9AA6B3; --line:#2E3A46;
   --green:#6CC592; --green-soft:#1C3527; --blue:#7DB8DA; --blue-soft:#1A2F3C;
   --amber:#E8B056; --amber-soft:#3A2C14; --red:#EE8A7E; --red-soft:#3D1F1B; --drop:#151C24;
@@ -92,6 +94,23 @@ tr:last-child td{border-bottom:0}
 .note.warn{background:var(--amber-soft);color:var(--amber)}
 .note.err{background:var(--red-soft);color:var(--red)}
 .note.info{background:var(--blue-soft);color:var(--blue)}
+.portal{margin-top:16px;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.pstate{display:flex;gap:10px;align-items:flex-start;font-size:.95rem}
+.dot{flex:none;width:10px;height:10px;border-radius:50%;margin-top:7px;background:var(--muted)}
+.dot.live{background:var(--green)} .dot.off{background:var(--amber)} .dot.err{background:var(--red)}
+.fallback[hidden]{display:none}
+.fallback{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.fallback{grid-template-columns:1fr}}
+.drop.small{min-height:140px;padding:16px}
+.opt{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--line);color:var(--muted);font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;vertical-align:2px}
+textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:64px;resize:vertical}
+.master{margin-top:14px;padding:14px 16px;border-radius:10px;font-size:.95rem}
+.master.ok{background:var(--green-soft);color:var(--green)}
+.master.bad{background:var(--red-soft);color:var(--red)}
+.master.warn{background:var(--amber-soft);color:var(--amber)}
+.master .codes{margin-top:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;word-break:break-all}
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
+.single{grid-template-columns:1fr}
 .again{margin-top:28px;background:none;border:1px solid var(--line);color:var(--ink);font:inherit;padding:10px 16px;border-radius:9px;cursor:pointer}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -99,21 +118,14 @@ tr:last-child td{border-bottom:0}
 <body>
 <main>
   <h1>Linenclub B2B Stock Update</h1>
-  <p class="lede">Add the two files below. You'll get a stock file ready to upload to the portal, plus a product file if the client has sent any codes the portal doesn't have yet.</p>
+  <p class="lede">Upload the client's stock report. Add the portal's latest stock export too. You get a stock file ready to upload, plus a product file if the client sent codes the portal doesn't have yet.</p>
 
-  <div class="steps">
-    <label class="drop" id="dropStock">
-      <input type="file" id="fStock" accept=".xlsx,.xls,.xlsb,.csv">
-      <span class="num">1</span>
-      <strong>Portal stock export</strong>
-      <small>The latest stock file downloaded from QArt (columns like SizeERPCode, InitialStock, RemainingStock).</small>
-      <span class="fname" id="nStock"></span>
-    </label>
+  <div class="steps single">
     <label class="drop" id="dropClient">
       <input type="file" id="fClient" accept=".xlsx,.xls,.xlsb,.xlsm">
-      <span class="num">2</span>
+      <span class="num">1</span>
       <strong>Client stock report</strong>
-      <small>The full file the client sent. Only its "Qart stock" sheet is used; everything else is ignored.</small>
+      <small>The full file the client sent. Its "Qart stock" sheet is used, and every row behind it is read, even rows the client hid with a filter.</small>
       <span class="fname" id="nClient"></span>
     </label>
   </div>
@@ -123,14 +135,35 @@ tr:last-child td{border-bottom:0}
     <select id="sheetSel" style="margin-left:8px"></select>
   </div>
 
+  <div class="portal" id="portal">
+    <div class="pstate"><span class="dot" id="pDot"></span><span id="pText">Portal files</span></div>
+    <div class="fallback" id="fallback" hidden>
+      <label class="drop small" id="dropStock">
+        <input type="file" id="fStock" accept=".xlsx,.xls,.xlsb,.csv">
+        <span class="num">2</span>
+        <strong>Portal stock export</strong>
+        <small>The latest stock file downloaded from QArt.</small>
+        <span class="fname" id="nStock"></span>
+      </label>
+      <label class="drop small" id="dropProduct">
+        <input type="file" id="fProduct" accept=".xlsx,.xls,.xlsb,.csv">
+        <span class="num">3</span>
+        <strong>Portal product export <span class="opt">Optional</span></strong>
+        <small>The product file downloaded from QArt. Adding it checks that every stock code exists in the product master.</small>
+        <span class="fname" id="nProduct"></span>
+      </label>
+    </div>
+  </div>
+
   <details>
-    <summary>Fixed values for new products</summary>
+    <summary>Values for new products</summary>
     <div class="fields">
       <label class="f">Season<input id="sSeason" value="NOS"></label>
-      <label class="f">Brand<input id="sBrand" value="Linenclub Studio"></label>
       <label class="f">OfferMonth<input id="sOffer" value="Nos"></label>
     </div>
-    <p class="hint">These go on every new product row. Leave them as they are unless you've been told otherwise.</p>
+    <label class="f" style="margin-top:12px">Brand renames (one per line, client brand = portal brand)<textarea id="sBrands">LCS = Linenclub Studio
+LCA = Linenclub Studio</textarea></label>
+    <p class="hint">Brand comes from the client file. Brands listed here are renamed; any other brand is used as the client wrote it.</p>
   </details>
 
   <button class="go" id="go" disabled>Build upload files</button>
@@ -146,6 +179,7 @@ tr:last-child td{border-bottom:0}
     </div>
 
     <div class="check" id="check"></div>
+    <div class="master" id="master"></div>
     <div class="outputs" id="outputs"></div>
     <div class="notes" id="notes"></div>
 
@@ -222,10 +256,15 @@ function parseStock(rows) {
   return { header, ix, data };
 }
 
-function parseClient(rows) {
-  const hr = findHeaderRow(rows, ["material code"]);
-  if (hr < 0) throw new Error("Couldn't find a 'Material code' column in the client's Qart stock sheet.");
+// ---- Client file ----------------------------------------------------------
+// Reads a table whose header row has "Material code". Works for the pivot
+// ("Qart stock") and for the pivot's source sheet ("Raw data").
+function readClientTable(rows, opts = {}) {
+  const need = ["material code"].concat(opts.qtyName ? [norm(opts.qtyName)] : []);
+  const hr = findHeaderRow(rows, need, 40);
+  if (hr < 0) return null;
   const header = rows[hr];
+  const qtyCands = opts.qtyName ? [norm(opts.qtyName)] : ["total", "sum of stock", "stock", "sum of total", "qty", "quantity"];
   const ix = {
     brand: colIndex(header, ["brand"]),
     cat: colIndex(header, ["cat", "category"]),
@@ -234,36 +273,91 @@ function parseClient(rows) {
     generic: colIndex(header, ["generic code", "genericcode"]),
     size: colIndex(header, ["size 2", "size2", "size"]),
     code: colIndex(header, ["material code"]),
-    qty: colIndex(header, ["total", "sum of stock", "stock", "sum of total", "qty", "quantity"]),
+    qty: colIndex(header, qtyCands),
   };
-  if (ix.qty < 0) throw new Error("Couldn't find the stock quantity column (expected 'Total' or 'Sum of Stock') in the Qart stock sheet.");
+  if (ix.qty < 0) return null;
+  // Page (report) filters of a pivot sit above its header: "Field | Value".
+  const pageFilters = [];
+  let valueField = null;
+  for (let i = 0; i < hr; i++) {
+    const cells = (rows[i] || []).map(txt).filter(Boolean);
+    if (cells.length === 1 && /^sum of /i.test(cells[0])) valueField = cells[0].replace(/^sum of /i, "").trim();
+    else if (cells.length === 2) pageFilters.push({ field: cells[0], value: cells[1] });
+  }
+  const hq = txt(header[ix.qty]);
+  if (!valueField && /^sum of /i.test(hq)) valueField = hq.replace(/^sum of /i, "").trim();
+  const isPivot = !!valueField || pageFilters.length > 0 || norm(hq) === "total";
+
+  // Row filter (only used on the source sheet): apply the pivot's page filters.
+  const filters = [], unappliedFilters = [];
+  for (const f of (opts.pageFilters || [])) {
+    const v = norm(f.value);
+    if (v === "(all)") continue;
+    const c = colIndex(header, [norm(f.field)]);
+    if (c < 0 || v === "(multiple items)") { unappliedFilters.push(f); continue; }
+    filters.push({ c, v, f });
+  }
   const map = new Map();
-  let skipped = 0;
+  let excludedRows = 0, excludedQty = 0, rowsRead = 0;
   for (let i = hr + 1; i < rows.length; i++) {
     const r = rows[i] || [];
     const code = txt(r[ix.code]);
-    if (!code || code === "0" || norm(code) === "material code" || norm(code).includes("total")) { if (r.some(x => txt(x))) skipped++; continue; }
-    const q = num(r[ix.qty]);
+    if (!code || code === "0" || norm(code) === "material code" || norm(code).includes("total")) continue;
+    const q = num(r[ix.qty]) || 0;
+    if (filters.length && !filters.every(f => norm(r[f.c]) === f.v)) { excludedRows++; excludedQty += q; continue; }
+    rowsRead++;
     const key = code.toUpperCase();
     const g = k => ix[k] >= 0 ? r[ix[k]] : "";
-    if (map.has(key)) { map.get(key).qty += (q || 0); map.get(key).dupes++; continue; }
-    map.set(key, { code, qty: q || 0, brand: txt(g("brand")), cat: txt(g("cat")), mrp: g("mrp"),
+    if (map.has(key)) { const it = map.get(key); it.qty += q; it.dupes++; continue; }
+    map.set(key, { code, qty: q, brand: txt(g("brand")), cat: txt(g("cat")), mrp: g("mrp"),
       colour: txt(g("colour")), generic: txt(g("generic")), size: txt(g("size")), dupes: 0 });
   }
-  return { items: [...map.values()], skipped };
+  return { map, isPivot, valueField, pageFilters, unappliedFilters, excludedRows, excludedQty, rowsRead, headerRow: hr };
 }
 
+// Kept for older callers: plain parse of one sheet.
+function parseClient(rows) {
+  const t = readClientTable(rows);
+  if (!t) throw new Error("Couldn't find the 'Material code' and stock quantity columns in the client's Qart stock sheet.");
+  return { items: [...t.map.values()], skipped: 0 };
+}
 
+// Decide what the client's stock really is. A pivot can hide codes through
+// its filters, so when the pivot's source sheet is available we rebuild
+// the numbers from every source row and report what the pivot left out.
+function mergeClient(pivot, source, sourceName) {
+  const info = { usedSource: false, sourceName, hidden: [], changedQty: [], pivotCodes: pivot.map.size,
+    unappliedFilters: source ? source.unappliedFilters : [], excludedRows: 0, excludedQty: 0, pageFilters: pivot.pageFilters };
+  if (!source || !source.map.size) return { items: [...pivot.map.values()], info };
+  const pivotOnly = [...pivot.map.keys()].filter(k => !source.map.has(k));
+  if (pivotOnly.length) { info.sourceMismatch = pivotOnly.length; return { items: [...pivot.map.values()], info }; }
+  info.usedSource = true;
+  // Several source rows per code are normal (the pivot adds them up too), so they aren't reported as duplicates.
+  for (const it of source.map.values()) it.dupes = 0;
+  info.excludedRows = source.excludedRows; info.excludedQty = source.excludedQty;
+  for (const [k, it] of source.map) {
+    const p = pivot.map.get(k);
+    if (!p) info.hidden.push(it);
+    else if (Math.abs(p.qty - it.qty) > 1e-9) info.changedQty.push({ code: it.code, pivot: p.qty, source: it.qty });
+  }
+  return { items: [...source.map.values()], info };
+}
+
+// ---- Stock --------------------------------------------------------------
 // Plant is always NA, exactly as in the portal export.
 const PLANT = "NA";
-function reconcile(stock, client, settings) {
+function stockFromMap(entries) {   // entries: [[code, remaining], ...] from QArt
+  return { header: ["SizeERPCode", "InitialStock", "RemainingStock"], ix: { code: 0, init: 1, rem: 2, upd: -1, cre: -1 },
+    data: entries.map(([c, r]) => [c, r, r]) };
+}
+
+function reconcile(stock, client) {
   const { ix } = stock;
   const byCode = new Map();
-  stock.data.forEach((r, i) => byCode.set(txt(r[ix.code]).toUpperCase(), i));
-  // Output: [SizeERPCode, InitialStock, RemainingStock, Plant]; dates stay empty; Initial always equals Remaining.
-  // Step 1: clear every existing code to 0, so codes the client didn't send end up as 0.
+  stock.data.forEach((r, i) => { const k = txt(r[ix.code]).toUpperCase(); if (!byCode.has(k)) byCode.set(k, i); });
+  // Step 1: clear every existing code to 0 (codes the client didn't send stay at 0).
   const out = stock.data.map(r => [txt(r[ix.code]), 0, 0, PLANT]);
-  const res = { changed: 0, same: 0, added: [], mrpForced: [], missingFields: [], dupes: 0, notInClient: 0, zeroed: 0, clientTotal: 0, outputTotal: 0 };
+  const res = { changed: 0, same: 0, added: [], dupes: 0, notInClient: 0, zeroed: 0, clientTotal: 0, outputTotal: 0 };
   const matched = new Set();
   for (const it of client.items) {
     const key = it.code.toUpperCase();
@@ -282,33 +376,83 @@ function reconcile(stock, client, settings) {
     }
   }
   res.notInClient = stock.data.length - matched.size;
-  stock.data.forEach((r, i) => {
+  stock.data.forEach(r => {
     if (!matched.has(txt(r[ix.code]).toUpperCase()) && (num(r[ix.rem]) || 0) !== 0) res.zeroed++;
   });
   res.outputTotal = out.reduce((a, r) => a + (Number(r[2]) || 0), 0);
   res.stockRows = out;
+  return res;
+}
 
-  // Product rows for brand-new codes
-  res.productRows = res.added.map(it => {
+// ---- Product rows for brand-new codes -------------------------------------
+// brandMap: Map(normalised client brand -> portal brand). Anything unmapped
+// keeps the client's own brand.
+function parseBrandMap(text) {
+  const m = new Map();
+  String(text || "").split(/\n|;/).forEach(line => {
+    const k = line.indexOf("=");
+    if (k < 0) return;
+    const from = line.slice(0, k).trim(), to = line.slice(k + 1).trim();
+    if (from && to) m.set(norm(from), to);
+  });
+  return m;
+}
+
+function buildProductRows(items, settings) {
+  const out = { rows: [], mrpForced: [], missingFields: [], brandCounts: new Map(), unknownBrands: new Map() };
+  const blankColour = ["", "0", "-", "--", "na", "n/a", "nil", "none", "null", "#n/a"];
+  const known = settings.portalBrands ? new Set([...settings.portalBrands].map(norm)) : null;
+  for (const it of items) {
     const m = num(it.mrp);
     let mrp = m;
-    if (m == null || m <= 0) { mrp = 1; res.mrpForced.push(it.code); }
-    const blankColour = ["", "0", "-", "--", "na", "n/a", "nil", "none", "null", "#n/a"];
+    if (m == null || m <= 0) { mrp = 1; out.mrpForced.push(it.code); }
     const colour = blankColour.includes(norm(it.colour)) ? "Na" : it.colour;
+    const brand = settings.brandMap.get(norm(it.brand)) || it.brand;
+    out.brandCounts.set(brand, (out.brandCounts.get(brand) || 0) + 1);
+    if (brand && known && !known.has(norm(brand))) out.unknownBrands.set(brand, (out.unknownBrands.get(brand) || 0) + 1);
     const v = {
-      "Season": settings.season, "Brand": settings.brand,
+      "Season": settings.season, "Brand": brand,
       "Category": it.cat, "SubCategory": it.cat, "MRP": mrp,
       "OfferMonth": settings.offerMonth, "Style Name": it.generic,
       "Color": colour, "Option": it.generic, "Size": it.size,
       "Size Erp Code": it.code, "QR Code": it.generic,
     };
     const missing = PRODUCT_REQUIRED.filter(h => v[h] === "" || v[h] == null || v[h] === "0");
-    if (missing.length) res.missingFields.push({ code: it.code, missing });
-    return PRODUCT_HEADERS.map(h => (h in v ? v[h] : null));
-  });
-  return res;
+    if (missing.length) out.missingFields.push({ code: it.code, missing });
+    out.rows.push(PRODUCT_HEADERS.map(h => (h in v ? v[h] : null)));
+  }
+  return out;
 }
 
+// Product master from an uploaded export (fallback when QArt isn't reachable).
+function parseProductCodes(rows) {
+  const hr = findHeaderRow(rows, ["size erp code"], 40) >= 0 ? findHeaderRow(rows, ["size erp code"], 40) : findHeaderRow(rows, ["sizeerpcode"], 40);
+  if (hr < 0) throw new Error("Couldn't find a 'Size Erp Code' column in the product export.");
+  const c = colIndex(rows[hr], ["size erp code", "sizeerpcode"]);
+  const set = new Set();
+  for (let i = hr + 1; i < rows.length; i++) { const v = txt((rows[i] || [])[c]).toUpperCase(); if (v) set.add(v); }
+  return set;
+}
+
+// ---- QArt SQL (read-only) -------------------------------------------------
+const RS = "\u001e", US = "\u001f";
+const SQL = {
+  summary: () => "SELECT COUNT(*) AS n, SUM(CAST(RemainingStock AS bigint)) AS total, " +
+    "(SELECT COUNT(*) FROM dbo.Stocks s WHERE NOT EXISTS (SELECT 1 FROM dbo.ProductSizes p WHERE p.SizeERPCode = s.SizeERPCode)) AS missingProduct, " +
+    "(SELECT STRING_AGG(CAST(Brand AS nvarchar(MAX)), NCHAR(30)) FROM (SELECT DISTINCT Brand FROM dbo.Products WHERE Brand IS NOT NULL AND LTRIM(RTRIM(Brand)) <> '') b) AS brands, " +
+    "SYSUTCDATETIME() AS asOf FROM dbo.Stocks",
+  stockChunk: (k, K) => `WITH t AS (SELECT SizeERPCode AS c, RemainingStock AS r, NTILE(${K | 0}) OVER (ORDER BY SizeERPCode) AS b FROM dbo.Stocks) ` +
+    "SELECT COUNT(*) AS n, SUM(CAST(r AS bigint)) AS total, STRING_AGG(CAST(c + NCHAR(31) + CAST(r AS nvarchar(12)) AS nvarchar(MAX)), NCHAR(30)) WITHIN GROUP (ORDER BY c) AS d " +
+    `FROM t WHERE b = ${k | 0}`,
+  missingProduct: () => "SELECT COUNT(*) AS n, STRING_AGG(CAST(c AS nvarchar(MAX)), NCHAR(30)) AS d FROM (SELECT TOP 5000 s.SizeERPCode AS c FROM dbo.Stocks s " +
+    "WHERE NOT EXISTS (SELECT 1 FROM dbo.ProductSizes p WHERE p.SizeERPCode = s.SizeERPCode) ORDER BY s.SizeERPCode) x",
+  productMatch: codes => "SELECT COUNT(*) AS n, STRING_AGG(CAST(SizeERPCode AS nvarchar(MAX)), NCHAR(30)) AS d FROM (SELECT DISTINCT SizeERPCode FROM dbo.ProductSizes WHERE SizeERPCode IN (" +
+    codes.map(c => "N'" + String(c).replace(/'/g, "''") + "'").join(",") + ")) x",
+};
+function splitList(d) { return d ? String(d).split(RS).filter(Boolean) : []; }
+function parseStockChunk(d) {
+  return splitList(d).map(p => { const k = p.lastIndexOf(US); return [p.slice(0, k), Number(p.slice(k + 1)) || 0]; });
+}
 
 // ---- Writer: fills the user's own header-only template, keeping every style byte ----
 function colLetter(n) { let s = ""; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; } return s; }
@@ -354,74 +498,184 @@ function buildSheetParts(kind, sheetXml, tplSst, headers, rows) {
   return { sheetXml: x, sstXml: sst };
 }
 
-if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock, parseClient, reconcile, PRODUCT_HEADERS, PRODUCT_GREEN, buildSheetParts };
+if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock, parseClient, readClientTable, mergeClient, stockFromMap, reconcile, parseBrandMap, buildProductRows, parseProductCodes, SQL, splitList, parseStockChunk, PRODUCT_HEADERS, PRODUCT_GREEN, buildSheetParts, norm, txt, num };
 
 </script>
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const files = { stock: null, client: null };
-  let clientBook = null, lastResult = null, downloads = null, downloadsTried = false;
+  const QART = "QArt", TOOL = "query_database", TENANT = "linenclubb2b";
+  const STOCK_HEADERS = ["SizeERPCode","InitialStock","RemainingStock","Plant","UpdatedAt","CreatedAt"];
+  let clientFile = null, clientBook = null, lastResult = null, downloads = null;
+  const portalFiles = { stock: null, product: null };
+  let mcp = null, live = false;
+  const fmt = n => Number(n).toLocaleString();
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const tick = () => new Promise(r => setTimeout(r, 20));
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
 
-  function setStatus(msg, kind){
-    const s = $("status"); s.className = "status" + (msg ? " show " + kind : ""); s.textContent = msg || "";
-  }
-  function readBuf(file){ return file.arrayBuffer(); }
+  function setStatus(msg, kind){ const s = $("status"); s.className = "status" + (msg ? " show " + kind : ""); s.textContent = msg || ""; }
   function libsOk(){
     if (typeof XLSX === "undefined") { setStatus("The spreadsheet reader didn't load. Check your internet connection and reload the page.", "err"); return false; }
     return true;
   }
-  function ready(){ $("go").disabled = !(files.stock && files.client && ($("sheetPick").classList.contains("show") ? $("sheetSel").value : true)); }
-
-  function wireDrop(dropId, inputId, nameId, key){
-    const drop = $(dropId), input = $(inputId);
-    ["dragenter","dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
-    ["dragleave","drop"].forEach(e => drop.addEventListener(e, () => drop.classList.remove("over")));
-    drop.addEventListener("drop", ev => { ev.preventDefault(); if (ev.dataTransfer.files[0]) take(ev.dataTransfer.files[0]); });
-    input.addEventListener("change", () => { if (input.files[0]) take(input.files[0]); });
-    async function take(f){
-      files[key] = f; $(nameId).textContent = f.name; drop.classList.add("done");
-      $("results").classList.remove("show"); setStatus("");
-      if (key === "client") await inspectClient(f);
-      ready();
-    }
+  function setPortal(kind, text){ $("pDot").className = "dot " + kind; $("pText").textContent = text; }
+  function showFallback(on){ $("fallback").hidden = !on; }
+  function ready(){
+    const sheetOk = $("sheetPick").classList.contains("show") ? !!$("sheetSel").value : true;
+    const portalOk = live || !!portalFiles.stock;
+    $("go").disabled = !(clientFile && sheetOk && portalOk);
   }
 
+  // ---- Portal data: this public version always works from uploaded exports ----
+  live = false;
+  setPortal("off", "Portal files from QArt. The stock export is needed; the product export is optional.");
+  showFallback(true);
+
+  function qartError(code, message){ const e = new Error(message); e.code = code; return e; }
+  function qartMessage(e){
+    const code = e && e.code;
+    switch (code) {
+      case "needs_reauth": return "Your QArt connection has expired. Reconnect QArt in claude.ai Settings → Connectors, then build again.";
+      case "server_not_connected": return "QArt isn't connected to your claude.ai account. Add it in Settings → Connectors, or upload the portal files below.";
+      case "selection_required": return "You have more than one QArt connector. Pick one when claude.ai asks, then build again.";
+      case "not_in_manifest": case "consent_required": return "QArt wasn't allowed for this page. Build again and allow it when asked, or upload the portal files below.";
+      case "blocked_by_policy": case "approval_required": return "Your organization's settings block this QArt lookup. Upload the portal files below instead.";
+      case "server_unavailable": case "upstream_error": case "rate_limited": return "QArt didn't respond. Try again in a minute, or upload the portal files below.";
+      case "not_granted": case "capability_disabled": case "capability_removed": return "Live QArt data isn't available in this view. Upload the portal files below.";
+      case "tool_error": case "query_error": return "QArt couldn't run the lookup (" + (e.message || "unknown error") + "). Try again, or upload the portal files below.";
+      case "incomplete": return e.message + " Build again, or upload the portal files below.";
+      default: return "Couldn't get data from QArt" + (code ? " (" + code + ")" : "") + ". Upload the portal files below instead.";
+    }
+  }
+  async function q(sql, attempt = 0){
+    try {
+      const res = await mcp.callTool(QART, TOOL, { sql, client: TENANT, maxRows: 50 }, { cache: false });
+      let p = res && res.payload;
+      if (typeof p === "string") { try { p = JSON.parse(p); } catch { throw qartError("query_error", p.slice(0, 160)); } }
+      if (!p || typeof p !== "object") throw qartError("query_error", "unexpected reply");
+      if (p.error) throw qartError("query_error", String(p.error));
+      if (p.Client && String(p.Client).toLowerCase() !== TENANT) throw qartError("query_error", "wrong client database");
+      return p.Rows || [];
+    } catch (e) {
+      if (e && e.retryable && attempt === 0) { await sleep(e.retryAfterMs || (800 + Math.random() * 1200)); return q(sql, 1); }
+      throw e;
+    }
+  }
+  async function fetchPortal(attempt = 0){
+    setStatus("Getting the latest portal stock from QArt…", "work");
+    const [sum] = await q(SQL.summary());
+    if (!sum || !(sum.n >= 0)) throw qartError("incomplete", "QArt returned no stock summary.");
+    const K = Math.max(1, Math.ceil(sum.n / 2000));
+    const parts = new Array(K);
+    let done = 0;
+    const one = async k => {
+      const [row] = await q(SQL.stockChunk(k, K));
+      const list = parseStockChunk(row && row.d);
+      if (!row || list.length !== row.n) throw qartError("incomplete", "Part of the portal stock came back incomplete.");
+      parts[k - 1] = list; done++;
+      setStatus(`Getting the latest portal stock from QArt… ${done} of ${K}`, "work");
+    };
+    for (let k = 1; k <= K; k += 3) await Promise.all([k, k + 1, k + 2].filter(x => x <= K).map(one));
+    const entries = parts.flat();
+    if (entries.length !== sum.n) {
+      if (attempt === 0) return fetchPortal(1);   // stock changed while reading; read again once
+      throw qartError("incomplete", "The portal stock changed while it was being read.");
+    }
+    let missingExisting = [];
+    if (sum.missingProduct > 0) { const [m] = await q(SQL.missingProduct()); missingExisting = splitList(m && m.d); }
+    return { live: true, stock: stockFromMap(entries), asOf: sum.asOf, brands: splitList(sum.brands),
+      missingCount: sum.missingProduct || 0, missingExisting };
+  }
+  async function productMatchLive(codes){
+    const found = new Set();
+    for (let i = 0; i < codes.length; i += 300) {
+      setStatus(`Checking new codes against the product master… ${Math.min(i + 300, codes.length)} of ${codes.length}`, "work");
+      const [row] = await q(SQL.productMatch(codes.slice(i, i + 300)));
+      splitList(row && row.d).forEach(c => found.add(c.toUpperCase()));
+    }
+    return found;
+  }
+
+  // ---- Client file ----
+  function readSheets(buf, names, extra){
+    const wb = XLSX.read(buf, Object.assign({ type: "array", sheets: names, cellDates: false }, extra || {}));
+    const out = {};
+    for (const n of names) { const ws = wb.Sheets[n]; if (ws) out[n] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true }); }
+    return out;
+  }
   async function inspectClient(f){
     $("sheetPick").classList.remove("show"); clientBook = null;
     if (!libsOk()) return;
     try {
       setStatus("Looking inside the client file…", "work");
-      const buf = await readBuf(f);
+      const buf = await f.arrayBuffer();
       const names = XLSX.read(buf, { type: "array", bookSheets: true }).SheetNames;
       const pick = pickQartSheet(names);
       clientBook = { buf, names, pick };
       if (!pick) {
-        const sel = $("sheetSel"); sel.innerHTML = '<option value="">Select a sheet</option>' + names.map(n => `<option>${n.replace(/</g,"&lt;")}</option>`).join("");
+        const sel = $("sheetSel"); sel.innerHTML = '<option value="">Select a sheet</option>' + names.map(n => `<option>${esc(n)}</option>`).join("");
         sel.onchange = ready;
-        $("sheetPick").classList.add("show");
-        setStatus("");
-      } else {
-        setStatus(`Found the "${pick}" sheet.`, "work");
-      }
+        $("sheetPick").classList.add("show"); setStatus("");
+      } else setStatus(`Found the "${pick}" sheet.`, "work");
     } catch (e) {
-      files.client = null; $("dropClient").classList.remove("done");
+      clientFile = null; $("dropClient").classList.remove("done"); $("nClient").textContent = "";
       setStatus("Couldn't open the client file. Make sure it's an Excel file (.xlsx or .xlsb) and not password-protected.", "err");
     }
   }
-
-  function sheetRows(buf, name){
-    const wb = XLSX.read(buf, { type: "array", sheets: name ? [name] : undefined, cellDates: false });
-    const ws = wb.Sheets[name || wb.SheetNames[0]];
-    if (!ws) throw new Error(`Sheet "${name}" couldn't be read.`);
-    return { rows: XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true }), sheetName: name || wb.SheetNames[0] };
+  async function readClient(){
+    const { buf, names } = clientBook;
+    const sheet = clientBook.pick || $("sheetSel").value;
+    if (!sheet) throw new Error("Choose which sheet in the client file holds the Qart stock.");
+    setStatus("Reading the client's stock report…", "work"); await tick();
+    const rawNamed = names.filter(n => n !== sheet && /raw/i.test(n));
+    const got = readSheets(buf, [sheet, ...rawNamed]);
+    const pivot = readClientTable(got[sheet] || []);
+    if (!pivot) throw new Error(`Couldn't find the 'Material code' and stock quantity columns in the "${sheet}" sheet.`);
+    let source = null, sourceName = null;
+    if (pivot.isPivot) {
+      const opts = { qtyName: pivot.valueField || "Stock", pageFilters: pivot.pageFilters };
+      for (const n of rawNamed) { const t = readClientTable(got[n] || [], opts); if (t && t.map.size) { source = t; sourceName = n; break; } }
+      if (!source) {
+        // Not in a "raw" sheet: look at the header of every other sheet.
+        for (const n of names.filter(x => x !== sheet && !rawNamed.includes(x))) {
+          setStatus(`Looking for the data behind the client's pivot… (${n})`, "work"); await tick();
+          const head = readSheets(buf, [n], { sheetRows: 40 })[n] || [];
+          if (!readClientTable(head, opts)) continue;
+          const t = readClientTable(readSheets(buf, [n])[n] || [], opts);
+          if (t && t.map.size) { source = t; sourceName = n; break; }
+        }
+      }
+    }
+    const merged = mergeClient(pivot, source, sourceName);
+    merged.info.isPivot = pivot.isPivot; merged.info.sheet = sheet;
+    if (!merged.items.length) throw new Error(`The "${sheet}" sheet has no rows with a Material code.`);
+    return merged;
   }
 
-  function stamp(){ const d = new Date(), p = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  // ---- Portal files (fallback) ----
+  async function readPortalFiles(){
+    setStatus("Reading the portal stock export…", "work"); await tick();
+    const sf = portalFiles.stock;
+    if (!sf) throw new Error("Upload the portal stock export to build the files.");
+    const sbuf = await sf.arrayBuffer();
+    const sname = XLSX.read(sbuf, { type: "array", bookSheets: true }).SheetNames[0];
+    const stock = parseStock(readSheets(sbuf, [sname])[sname] || []);
+    let productSet = null;
+    const pf = portalFiles.product;
+    if (pf) {
+      setStatus("Reading the portal product export…", "work"); await tick();
+      const pbuf = await pf.arrayBuffer();
+      const pn = XLSX.read(pbuf, { type: "array", bookSheets: true }).SheetNames[0];
+      productSet = parseProductCodes(readSheets(pbuf, [pn])[pn] || []);
+    }
+    return { live: false, stock, productSet, brands: null };
+  }
 
-  const STOCK_HEADERS = ["SizeERPCode","InitialStock","RemainingStock","Plant","UpdatedAt","CreatedAt"];
+  // ---- Output files ----
+  function stamp(){ const d = new Date(), p = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
   function b64ToBytes(b64){ const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
-  // Opens a copy of the user's own sample file (headers only) and drops the new rows in,
+  // Opens a copy of the sample file (headers only) and drops the new rows in,
   // so headers, colours, fonts, widths and frozen row stay exactly as in the sample.
   async function buildWorkbook(kind, rows){
     if (typeof JSZip === "undefined") throw new Error("A helper for building Excel files didn't load. Reload the page and try again.");
@@ -434,17 +688,11 @@ if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock,
     zip.file("xl/sharedStrings.xml", parts.sstXml);
     return zip.generateAsync({ type: "blob", compression: "DEFLATE" });
   }
-
   async function getDownloads(){
     if (downloads) return downloads;
-    try {
-      if (window.claude && typeof window.claude.use === "function") downloads = await window.claude.use("downloads");
-    } catch { downloads = null; }
+    try { if (window.claude && typeof window.claude.use === "function") downloads = await window.claude.use("downloads"); } catch { downloads = null; }
     return downloads;
   }
-
-  // Plain browser download: used when the page is opened outside the claude.ai viewer,
-  // or when the viewer's save option isn't available to this person.
   function browserDownload(blob, filename){
     const file = new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(file);
@@ -453,14 +701,13 @@ if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock,
     document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 60000);
   }
-
   async function save(kind, btn){
     const r = lastResult; if (!r) return;
     const label = btn.textContent;
     btn.disabled = true; btn.textContent = "Preparing…"; setStatus("");
     let blob, filename;
     try {
-      blob = await buildWorkbook(kind, kind === "stock" ? r.stockRows : r.productRows);
+      blob = await buildWorkbook(kind, kind === "stock" ? r.stockRows : r.product.rows);
       filename = `${kind === "stock" ? "Stock" : "Product"}_Upload_${stamp()}.xlsx`;
     } catch (e) {
       setStatus("The file couldn't be built" + (e && e.message ? ": " + e.message : "."), "err");
@@ -469,77 +716,104 @@ if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock,
     try {
       const inViewer = !!(window.claude && typeof window.claude.use === "function");
       const dl = inViewer ? await getDownloads() : null;
-      if (!inViewer) {
-        browserDownload(blob, filename); btn.textContent = "Downloaded";
-      } else if (dl) {
-        try {
-          await dl.save({ filename, data: blob });
-          btn.textContent = "Downloaded";
-        } catch (e) {
+      if (!inViewer) { browserDownload(blob, filename); btn.textContent = "Downloaded"; }
+      else if (dl) {
+        try { await dl.save({ filename, data: blob }); btn.textContent = "Downloaded"; }
+        catch (e) {
           const code = e && e.code;
           if (code === "declined") { setStatus("Download cancelled. Click the button again whenever you're ready.", "warn"); btn.textContent = label; return; }
           if (code === "rate_limited") { setStatus("A download prompt is already open. Finish that one first.", "warn"); btn.textContent = label; return; }
-          setStatus("Downloads from this link only work for members of the organization that shared it. Ask them for the standalone Linenclub B2B Stock Update file, open it in your browser, and download from there.", "err");
-          btn.textContent = label; return;
+          setStatus("Downloads from this link only work for members of the organization that shared it.", "err"); btn.textContent = label; return;
         }
-      } else {
-        setStatus("Downloads from this link only work for members of the organization that shared it. Ask them for the standalone Linenclub B2B Stock Update file, open it in your browser, and download from there.", "err");
-        btn.textContent = label; return;
-      }
+      } else { setStatus("Downloads from this link only work for members of the organization that shared it.", "err"); btn.textContent = label; return; }
       setTimeout(() => { btn.textContent = label; }, 2500);
     } finally { btn.disabled = false; }
   }
 
-  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+  // ---- Results ----
+  function codeList(items, n = 30, withQty){
+    const shown = items.slice(0, n).map(it => typeof it === "string" ? esc(it) : esc(it.code) + (withQty ? ` (${fmt(it.qty)})` : "")).join(", ");
+    return shown + (items.length > n ? `, … and ${fmt(items.length - n)} more` : "");
+  }
+  function note(kind, html){ $("notes").insertAdjacentHTML("beforeend", `<div class="note ${kind}">${html}</div>`); }
+  function timeOf(iso){ if (!iso) return ""; const d = new Date(String(iso).replace(/(\.\d{3})\d*$/, "$1") + "Z"); return isNaN(d) ? "" : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); }
 
   function render(r){
-    $("tChanged").textContent = r.changed.toLocaleString();
-    $("tSame").textContent = r.same.toLocaleString();
-    $("tNew").textContent = r.added.length.toLocaleString();
-    $("tNotIn").textContent = r.notInClient.toLocaleString();
+    $("tChanged").textContent = fmt(r.changed);
+    $("tSame").textContent = fmt(r.same);
+    $("tNew").textContent = fmt(r.added.length);
+    $("tNotIn").textContent = fmt(r.notInClient);
 
-    const ck = $("check"), fmt = n => Number(n).toLocaleString();
-    if (r.clientTotal === r.outputTotal) {
-      ck.className = "check ok";
-      ck.textContent = `Stock totals match: client file ${fmt(r.clientTotal)} = stock file ${fmt(r.outputTotal)}`;
+    const ck = $("check");
+    if (r.clientTotal === r.outputTotal) { ck.className = "check ok"; ck.textContent = `Stock totals match: client file ${fmt(r.clientTotal)} = stock file ${fmt(r.outputTotal)}`; }
+    else { ck.className = "check bad"; ck.textContent = `Stock totals don't match: client file ${fmt(r.clientTotal)}, stock file ${fmt(r.outputTotal)}. Check the files before uploading.`; }
+
+    // Product master check
+    const m = $("master"), pc = r.productCheck;
+    if (!pc.ran) {
+      m.className = "master warn";
+      m.innerHTML = `<strong>Product master check skipped.</strong> Upload the portal product export above and build again to check that every stock code exists in the product master.`;
+    } else if (pc.missingExisting.length || pc.missingCount) {
+      const n = pc.missingCount || pc.missingExisting.length;
+      m.className = "master bad";
+      m.innerHTML = `<strong>${fmt(n)} code${n === 1 ? "" : "s"} in the stock file ${n === 1 ? "is" : "are"} missing from the product master.</strong> The portal won't show stock for ${n === 1 ? "it" : "them"} until matching product rows exist.` +
+        `<div class="codes" id="missCodes">${codeList(pc.missingExisting, 60)}</div>` +
+        `<button class="linkbtn" id="copyMiss" style="margin-top:8px">Copy all ${fmt(pc.missingExisting.length)} codes</button>`;
+      $("copyMiss").onclick = async () => { try { await navigator.clipboard.writeText(pc.missingExisting.join("\n")); $("copyMiss").textContent = "Copied"; } catch { $("copyMiss").textContent = "Couldn't copy; select the codes above instead"; } };
     } else {
-      ck.className = "check bad";
-      ck.textContent = `Stock totals don't match: client file ${fmt(r.clientTotal)}, stock file ${fmt(r.outputTotal)}. Check the files before uploading.`;
+      m.className = "master ok";
+      const nNew = r.product.rows.length;
+      m.innerHTML = `<strong>Product master check passed.</strong> Every code in the stock file exists in the product master` +
+        (nNew ? `, apart from the ${fmt(nNew)} new code${nNew === 1 ? "" : "s"} going into the new product file.` : ".");
     }
 
     const outs = $("outputs"); outs.innerHTML = "";
-    outs.insertAdjacentHTML("beforeend", `<div class="out stock"><div class="txt"><strong>Updated stock file</strong><p>${r.stockRows.length.toLocaleString()} codes: ${r.changed.toLocaleString()} updated, ${r.added.length.toLocaleString()} added, ${r.notInClient.toLocaleString()} set to 0. Same layout as your portal export, with only SizeERPCode, InitialStock and RemainingStock filled.</p></div><button class="dl" data-k="stock">Download stock file</button></div>`);
-    if (r.added.length) {
-      outs.insertAdjacentHTML("beforeend", `<div class="out product"><div class="txt"><strong>New product file</strong><p>${r.productRows.length.toLocaleString()} new option rows. Upload this to the portal <em>before</em> the stock file so the new codes exist.</p></div><button class="dl" data-k="product">Download product file</button></div>`);
-    } else {
-      outs.insertAdjacentHTML("beforeend", `<div class="none">No new codes this time, so there's no product file to upload.</div>`);
-    }
+    outs.insertAdjacentHTML("beforeend", `<div class="out stock"><div class="txt"><strong>Updated stock file</strong><p>${fmt(r.stockRows.length)} codes: ${fmt(r.changed)} updated, ${fmt(r.added.length)} added, ${fmt(r.notInClient)} set to 0. Same layout as the portal export, with SizeERPCode, InitialStock, RemainingStock and Plant filled.</p></div><button class="dl" data-k="stock">Download stock file</button></div>`);
+    if (r.product.rows.length) outs.insertAdjacentHTML("beforeend", `<div class="out product"><div class="txt"><strong>New product file</strong><p>${fmt(r.product.rows.length)} new option rows. Upload this to the portal <em>before</em> the stock file so the new codes exist.</p></div><button class="dl" data-k="product">Download product file</button></div>`);
+    else outs.insertAdjacentHTML("beforeend", `<div class="none">No new product rows are needed this time, so there's no product file to upload.</div>`);
     outs.querySelectorAll(".dl").forEach(b => b.addEventListener("click", () => save(b.dataset.k, b)));
 
-    const notes = $("notes"); notes.innerHTML = "";
-    if (r.missingFields.length) {
-      const list = r.missingFields.slice(0, 15).map(m => `${esc(m.code)} (${m.missing.map(esc).join(", ")})`).join("; ");
-      notes.insertAdjacentHTML("beforeend", `<div class="note err"><strong>${r.missingFields.length} new rows are missing required values</strong> and the portal will reject them until they're filled in: ${list}${r.missingFields.length > 15 ? "…" : ""}</div>`);
+    $("notes").innerHTML = "";
+    const ci = r.clientInfo;
+    // Where the client numbers came from
+    if (ci.usedSource) {
+      if (ci.hidden.length) {
+        const q = ci.hidden.reduce((a, b) => a + b.qty, 0);
+        note("warn", `<strong>The client's pivot was hiding ${fmt(ci.hidden.length)} code${ci.hidden.length === 1 ? "" : "s"} (${fmt(q)} units) with a filter.</strong> They're included, read from the "${esc(ci.sourceName)}" sheet: ${codeList(ci.hidden, 30, true)}`);
+      } else note("info", `Every row in the client's "${esc(ci.sourceName)}" sheet was read. The "${esc(ci.sheet)}" pivot wasn't hiding any codes.`);
+      if (ci.changedQty.length) note("warn", `<strong>${fmt(ci.changedQty.length)} codes had different quantities in the pivot than in its data</strong> (the client may not have refreshed the pivot). The numbers from the "${esc(ci.sourceName)}" sheet were used: ${ci.changedQty.slice(0, 15).map(c => `${esc(c.code)} ${fmt(c.pivot)} → ${fmt(c.source)}`).join(", ")}${ci.changedQty.length > 15 ? ", …" : ""}`);
+      if (ci.excludedRows) note("info", `${fmt(ci.excludedRows)} rows (${fmt(ci.excludedQty)} units) were left out because the pivot's report filter is set to ${ci.pageFilters.map(f => `"${esc(f.field)} = ${esc(f.value)}"`).join(", ")}.`);
+      if (ci.unappliedFilters.length) note("warn", `The pivot's report filter ${ci.unappliedFilters.map(f => `"${esc(f.field)}"`).join(", ")} is set to ${esc(ci.unappliedFilters[0].value)}, which can't be read from the file, so rows weren't filtered by it.`);
+    } else if (ci.isPivot) {
+      if (ci.sourceMismatch) note("warn", `The client's pivot doesn't match its data sheet (${fmt(ci.sourceMismatch)} codes are only in the pivot), so the rows visible in the pivot were used. If the client filtered the pivot, some codes may be missing.`);
+      else note("warn", `<strong>Couldn't find the data behind the client's pivot</strong>, so only the rows visible in the "${esc(ci.sheet)}" sheet were used. If the client filtered the pivot, some codes may be missing.`);
     }
-    if (r.mrpForced.length) {
-      notes.insertAdjacentHTML("beforeend", `<div class="note warn"><strong>MRP set to 1 for ${r.mrpForced.length} new rows</strong> because the client file had no valid MRP: ${r.mrpForced.slice(0, 15).map(esc).join(", ")}${r.mrpForced.length > 15 ? "…" : ""}</div>`);
+    // Where the portal numbers came from
+    if (r.portal.live) note("info", `Portal stock pulled live from QArt${timeOf(r.portal.asOf) ? " at " + timeOf(r.portal.asOf) : ""}: ${fmt(r.stockCount)} codes.`);
+    else note("info", `Portal stock read from the uploaded export: ${fmt(r.stockCount)} codes.`);
+
+    const pr = r.product;
+    if (pr.unknownBrands.size) {
+      const list = [...pr.unknownBrands].map(([b, n]) => `"${esc(b)}" on ${fmt(n)} row${n === 1 ? "" : "s"}`).join(", ");
+      note("warn", `<strong>Brand not on the portal:</strong> ${list}. The portal's brands are ${r.portal.brands.map(b => `"${esc(b)}"`).join(" and ")}. If it should be one of those, add a line such as <em>${esc([...pr.unknownBrands.keys()][0])} = ${esc(r.portal.brands[0] || "Linenclub Studio")}</em> under "Values for new products" and build again.`);
     }
-    if (r.dupes) {
-      notes.insertAdjacentHTML("beforeend", `<div class="note info">${r.dupes} codes appeared more than once in the client sheet. Their quantities were added together.</div>`);
+    if (pr.missingFields.length) {
+      const list = pr.missingFields.slice(0, 15).map(x => `${esc(x.code)} (${x.missing.map(esc).join(", ")})`).join("; ");
+      note("err", `<strong>${fmt(pr.missingFields.length)} new product row${pr.missingFields.length === 1 ? " is" : "s are"} missing required values</strong> and the portal will reject ${pr.missingFields.length === 1 ? "it" : "them"} until they're filled in: ${list}${pr.missingFields.length > 15 ? "…" : ""}`);
     }
-    if (r.stockCount && r.added.length === r.clientCount && r.clientCount > 0) {
-      notes.insertAdjacentHTML("beforeend", `<div class="note warn">None of the client's codes matched the portal stock file. If you expected some to match, check that you picked the right two files.</div>`);
-    }
+    if (pr.mrpForced.length) note("warn", `<strong>MRP set to 1 for ${fmt(pr.mrpForced.length)} new row${pr.mrpForced.length === 1 ? "" : "s"}</strong> because the client file had no valid MRP: ${codeList(pr.mrpForced, 15)}`);
+    if (r.productCheck.alreadyInMaster.length) note("info", `${fmt(r.productCheck.alreadyInMaster.length)} new stock codes already exist in the product master, so they aren't in the product file: ${codeList(r.productCheck.alreadyInMaster, 15)}`);
+    if (r.dupes) note("info", `${fmt(r.dupes)} codes appeared more than once in the client's data. Their quantities were added together.`);
+    if (r.stockCount && r.added.length === r.clientCount && r.clientCount > 0) note("warn", `None of the client's codes matched the portal stock. If you expected some to match, check that you picked the right client file.`);
 
     const pb = $("previewBox");
-    if (r.added.length) {
-      const cols = ["Size Erp Code","Style Name","Size","Category","MRP","Color"];
+    if (pr.rows.length) {
+      const cols = ["Size Erp Code","Brand","Style Name","Size","Category","MRP","Color"];
       const idx = cols.map(c => PRODUCT_HEADERS.indexOf(c));
       const qtyOf = new Map(r.added.map(a => [a.code, a.qty]));
-      const shown = r.productRows.slice(0, 50);
       $("preview").innerHTML = `<thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}<th>Stock</th></tr></thead><tbody>` +
-        shown.map(row => `<tr>${idx.map(i => `<td>${esc(row[i])}</td>`).join("")}<td>${esc(qtyOf.get(row[PRODUCT_HEADERS.indexOf("Size Erp Code")]))}</td></tr>`).join("") + "</tbody>";
-      $("previewMore").textContent = r.productRows.length > 50 ? `Showing the first 50 of ${r.productRows.length.toLocaleString()}. The download has them all.` : "";
+        pr.rows.slice(0, 50).map(row => `<tr>${idx.map(i => `<td>${esc(row[i])}</td>`).join("")}<td>${esc(qtyOf.get(row[PRODUCT_HEADERS.indexOf("Size Erp Code")]))}</td></tr>`).join("") + "</tbody>";
+      $("previewMore").textContent = pr.rows.length > 50 ? `Showing the first 50 of ${fmt(pr.rows.length)}. The download has them all.` : "";
       pb.style.display = "block";
     } else pb.style.display = "none";
 
@@ -547,26 +821,52 @@ if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock,
     $("results").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
 
+  // ---- Build ----
   $("go").addEventListener("click", async () => {
     if (!libsOk()) return;
-    const btn = $("go"); btn.disabled = true;
+    const btn = $("go"); btn.disabled = true; $("results").classList.remove("show");
     try {
-      setStatus("Reading the portal stock file…", "work");
-      await new Promise(r => setTimeout(r, 20));
-      const st = sheetRows(await readBuf(files.stock));
-      const stock = parseStock(st.rows);
+      if (!clientBook) await inspectClient(clientFile);
+      if (!clientBook) return;
+      const client = await readClient();
 
-      setStatus("Reading the client's Qart stock sheet…", "work");
-      await new Promise(r => setTimeout(r, 20));
-      if (!clientBook) await inspectClient(files.client);
-      const sheet = clientBook.pick || $("sheetSel").value;
-      if (!sheet) throw new Error("Choose which sheet in the client file holds the Qart stock.");
-      const client = parseClient(sheetRows(clientBook.buf, sheet).rows);
-      if (!client.items.length) throw new Error(`The "${sheet}" sheet has no rows with a Material code.`);
+      const useFiles = !live || !!portalFiles.stock;
+      let portal;
+      if (useFiles) portal = await readPortalFiles();
+      else {
+        try { portal = await fetchPortal(); setPortal("live", "Portal stock and product master pulled live from QArt."); }
+        catch (e) {
+          const msg = qartMessage(e);
+          setPortal("err", msg); showFallback(true);
+          setStatus(msg, "err"); return;
+        }
+      }
 
-      const settings = { season: $("sSeason").value.trim(), brand: $("sBrand").value.trim(), offerMonth: $("sOffer").value.trim() };
-      const r = reconcile(stock, client, settings);
-      r.stockCount = stock.data.length; r.clientCount = client.items.length;
+      setStatus("Matching codes…", "work"); await tick();
+      const r = reconcile(portal.stock, { items: client.items });
+      r.portal = portal; r.clientInfo = client.info;
+      r.stockCount = portal.stock.data.length; r.clientCount = client.items.length;
+
+      // Product master check: every stock-file code should exist in the product master.
+      const newCodes = r.added.map(a => a.code);
+      let found = null, pc = { ran: false, missingExisting: [], missingCount: 0, alreadyInMaster: [] };
+      if (portal.live) {
+        try { found = newCodes.length ? await productMatchLive(newCodes) : new Set(); }
+        catch (e) { const msg = qartMessage(e); setPortal("err", msg); setStatus(msg, "err"); return; }
+        pc = { ran: true, missingExisting: portal.missingExisting, missingCount: portal.missingCount, alreadyInMaster: [] };
+      } else if (portal.productSet) {
+        found = new Set(newCodes.map(c => c.toUpperCase()).filter(c => portal.productSet.has(c)));
+        const miss = portal.stock.data.map(x => txt(x[portal.stock.ix.code])).filter(c => !portal.productSet.has(c.toUpperCase()));
+        pc = { ran: true, missingExisting: miss, missingCount: miss.length, alreadyInMaster: [] };
+      }
+      const needRows = found ? r.added.filter(a => !found.has(a.code.toUpperCase())) : r.added;
+      if (found) pc.alreadyInMaster = r.added.filter(a => found.has(a.code.toUpperCase())).map(a => a.code);
+      r.productCheck = pc;
+      r.product = buildProductRows(needRows, {
+        season: $("sSeason").value.trim(), offerMonth: $("sOffer").value.trim(),
+        brandMap: parseBrandMap($("sBrands").value), portalBrands: portal.brands && portal.brands.length ? portal.brands : null,
+      });
+      if (!portal.brands) r.portal.brands = [];
       lastResult = r;
       setStatus("");
       render(r);
@@ -577,17 +877,36 @@ if (typeof module !== "undefined") module.exports = { pickQartSheet, parseStock,
   });
 
   $("again").addEventListener("click", () => {
-    files.stock = files.client = null; clientBook = null; lastResult = null;
-    ["dropStock","dropClient"].forEach(id => $(id).classList.remove("done"));
-    $("nStock").textContent = $("nClient").textContent = "";
-    $("fStock").value = $("fClient").value = "";
+    clientFile = null; clientBook = null; lastResult = null;
+    portalFiles.stock = portalFiles.product = null;
+    [["dropClient","nClient","fClient"],["dropStock","nStock","fStock"],["dropProduct","nProduct","fProduct"]].forEach(([d, n, f]) => {
+      $(d).classList.remove("done"); $(n).textContent = ""; $(f).value = "";
+    });
     $("sheetPick").classList.remove("show");
     $("results").classList.remove("show"); setStatus(""); ready();
     window.scrollTo({ top: 0 });
   });
 
-  wireDrop("dropStock", "fStock", "nStock", "stock");
-  wireDrop("dropClient", "fClient", "nClient", "client");
+  function wireDrop(dropId, inputId, onFile){
+    const drop = $(dropId), input = $(inputId);
+    ["dragenter","dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+    ["dragleave","drop"].forEach(e => drop.addEventListener(e, () => drop.classList.remove("over")));
+    drop.addEventListener("drop", ev => { ev.preventDefault(); if (ev.dataTransfer.files[0]) onFile(ev.dataTransfer.files[0]); });
+    input.addEventListener("change", () => { if (input.files[0]) onFile(input.files[0]); });
+  }
+  wireDrop("dropClient", "fClient", async f => {
+    clientFile = f; $("nClient").textContent = f.name; $("dropClient").classList.add("done");
+    $("results").classList.remove("show"); setStatus("");
+    await inspectClient(f); ready();
+  });
+  wireDrop("dropStock", "fStock", f => {
+    portalFiles.stock = f; $("nStock").textContent = f.name; $("dropStock").classList.add("done");
+    $("results").classList.remove("show"); setStatus(""); ready();
+  });
+  wireDrop("dropProduct", "fProduct", f => {
+    portalFiles.product = f; $("nProduct").textContent = f.name; $("dropProduct").classList.add("done");
+    $("results").classList.remove("show"); setStatus(""); ready();
+  });
 })();
 </script>
 </body>
